@@ -1,4 +1,3 @@
-const TOGETHER_API_KEY = "PASTE-YOUR-TOGETHER-API-KEY-HERE"; // Get this from api.together.xyz
 const themeToggle = document.querySelector(".theme-toggle");
 const promptForm = document.querySelector(".prompt-form");
 const promptInput = document.querySelector(".prompt-input");
@@ -76,44 +75,32 @@ const generateImages = async (promptText, selectedModel, imageCount, aspectRatio
 
     gridGallery.innerHTML = imageCardsMarkup;
 
-    // Call the Pollinations API for each image
-    const imagePromises = Array.from({ length: imageCount }, async (_, i) => {
+    // Call the Pollinations API strictly sequentially to prevent server overload
+    for (let i = 0; i < imageCount; i++) {
         const card = document.getElementById(`image-card-${i}`);
         try {
             // Append a random number to the prompt to ensure unique images 
-            // Together.ai API URL and options
-            const url = "https://api.together.xyz/v1/images/generations";
-            const options = {
-                method: "POST",
-                headers: {
-                    "Authorization": `Bearer ${TOGETHER_API_KEY}`,
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                    model: "black-forest-labs/FLUX.1-schnell-Free",
-                    prompt: promptText,
-                    width: width,
-                    height: height,
-                    steps: 4,
-                    n: 1,
-                    response_format: "b64_json"
-                })
-            };
+            const randomSeed = Math.floor(Math.random() * 1000000);
+            const encodedPrompt = encodeURIComponent(promptText);
+            
+            // Pollinations URL (No API key needed, completely free)
+            const url = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=${width}&height=${height}&seed=${randomSeed}&nologo=true`;
 
-            // Stagger requests to avoid overwhelming
-            if (i > 0) {
-                await new Promise(resolve => setTimeout(resolve, i * 1000));
+            // Robust fetch with retry
+            let response;
+            for (let attempt = 1; attempt <= 5; attempt++) {
+                try {
+                    response = await fetch(url);
+                    if (response.ok) break;
+                } catch (e) {
+                    // Ignore network errors and retry
+                }
+                if (attempt === 5) throw new Error("Server overloaded!");
+                await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2s before retry
             }
 
-            const response = await fetch(url, options);
-            if (!response.ok) {
-                const err = await response.json().catch(() => ({}));
-                throw new Error(err.error?.message || "Failed to generate image!");
-            }
-
-            const data = await response.json();
-            const b64Json = data.data[0].b64_json;
-            const imageUrl = "data:image/png;base64," + b64Json;
+            const blob = await response.blob();
+            const imageUrl = URL.createObjectURL(blob);
 
             // Wait for image to fully decode and load before injecting it
             const imgElement = document.createElement("img");
@@ -139,10 +126,7 @@ const generateImages = async (promptText, selectedModel, imageCount, aspectRatio
             card.classList.remove("loading");
             card.innerHTML = `<p class="status-text" style="color: red; padding: 1rem; text-align: center;">${error.message}</p>`;
         }
-    });
-
-    // Wait for all images to finish
-    await Promise.all(imagePromises);
+    }
 
     // Restore UI state
     isGenerating = false;
