@@ -1,4 +1,4 @@
-const HF_API_TOKEN = "PASTE-YOUR-API-KEY-HERE"; // Replace with your Hugging Face API Token
+const TOGETHER_API_KEY = "PASTE-YOUR-TOGETHER-API-KEY-HERE"; // Get this from api.together.xyz
 const themeToggle = document.querySelector(".theme-toggle");
 const promptForm = document.querySelector(".prompt-form");
 const promptInput = document.querySelector(".prompt-input");
@@ -81,29 +81,39 @@ const generateImages = async (promptText, selectedModel, imageCount, aspectRatio
         const card = document.getElementById(`image-card-${i}`);
         try {
             // Append a random number to the prompt to ensure unique images 
-            const randomSeed = Math.floor(Math.random() * 1000000);
-            const encodedPrompt = encodeURIComponent(promptText);
-            
-            // Pollinations.ai URL (No API key needed, GET request)
-            const url = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=${width}&height=${height}&seed=${randomSeed}&nologo=true`;
+            // Together.ai API URL and options
+            const url = "https://api.together.xyz/v1/images/generations";
+            const options = {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${TOGETHER_API_KEY}`,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    model: "black-forest-labs/FLUX.1-schnell-Free",
+                    prompt: promptText,
+                    width: width,
+                    height: height,
+                    steps: 4,
+                    n: 1,
+                    response_format: "b64_json"
+                })
+            };
 
-            // Stagger requests to avoid overwhelming the free server (Wait 1.5s per index)
+            // Stagger requests to avoid overwhelming
             if (i > 0) {
-                await new Promise(resolve => setTimeout(resolve, i * 1500));
+                await new Promise(resolve => setTimeout(resolve, i * 1000));
             }
 
-            // Adding a small retry logic in case of concurrent throttling
-            let response;
-            for (let attempt = 1; attempt <= 3; attempt++) {
-                response = await fetch(url);
-                if (response.ok) break;
-                if (attempt === 3) throw new Error("Failed to generate image!");
-                // Wait 1 second before retrying
-                await new Promise(resolve => setTimeout(resolve, 1000));
+            const response = await fetch(url, options);
+            if (!response.ok) {
+                const err = await response.json().catch(() => ({}));
+                throw new Error(err.error?.message || "Failed to generate image!");
             }
 
-            const blob = await response.blob();
-            const imageUrl = URL.createObjectURL(blob);
+            const data = await response.json();
+            const b64Json = data.data[0].b64_json;
+            const imageUrl = "data:image/png;base64," + b64Json;
 
             // Wait for image to fully decode and load before injecting it
             const imgElement = document.createElement("img");
