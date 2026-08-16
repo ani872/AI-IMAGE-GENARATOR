@@ -58,12 +58,12 @@ const generateImages = async (promptText, selectedModel, imageCount, aspectRatio
     generateBtn.querySelector("span").textContent = "Generating...";
     promptBtn.disabled = true;
 
-    // Calculate dimensions based on aspect ratio
-    let width = 1024, height = 1024;
+    // Calculate dimensions based on aspect ratio (Using 512 for faster/more reliable free server generation)
+    let width = 512, height = 512;
     if (aspectRatio === "16/9") {
-        width = 1024; height = 576;
+        width = 512; height = 288;
     } else if (aspectRatio === "9/16") {
-        width = 576; height = 1024;
+        width = 288; height = 512;
     }
 
     // Generate image cards dynamically
